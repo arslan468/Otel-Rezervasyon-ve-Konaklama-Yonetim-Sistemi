@@ -80,7 +80,7 @@ Veritabanı Yönetim Sistemleri dersi (2026-2027) dönem projesi. Bir otelin oda
 | POST | `/konaklamalar/{id}/checkin` · `/hizmet` · `/checkout` | resepsiyon | Konaklama işlemleri |
 | GET | `/konaklamalar/{id}/hesap` | resepsiyon | Toplam tutar (`sp_konaklama_tutar`) |
 | GET | `/yonetici/rapor/aylik` | yönetici | Doluluk ve gelir raporu |
-| CRUD | `/yonetici/odalar`, `/oda-tipleri`, `/sezon-fiyatlari`, `/ek-hizmetler`, `/personel` | yönetici | Yönetim |
+| CRUD | `/yonetici/odalar`, `/oda-tipleri`, `/sezon-fiyatlari`, `/ek-hizmetler`, `/personel` | yönetici | Yönetim | 
 
 ## 🧪 Test Senaryoları
 
