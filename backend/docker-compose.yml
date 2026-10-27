@@ -1,0 +1,90 @@
+# ==============================================================================
+# DOSYA ADI: docker-compose.yml
+# PROJE    : Otel Rezervasyon ve Konaklama Yönetim Sistemi
+# AMAC     : MSSQL Server 2022 ve Mailpit (Test E-Posta Sunucusu) servislerini
+#            Apple Silicon Mac ve diğer ortamlarda tek komutla ayağa kaldırmak.
+# CALISTIRMA: docker compose up -d
+# BAGIMLILIK: Docker Desktop (Rosetta emülasyonu açık olmalıdır)
+# ==============================================================================
+
+# Compose dosya sözdizimi sürümü (modern Docker sürümlerinde opsiyoneldir ancak uyumluluk için belirtilir)
+version: '3.8'
+
+# Servis tanımlamalarının başladığı ana blok
+services:
+
+  # ----------------------------------------------------------------------------
+  # SERVIS 1: MSSQL 2022 VERİTABANI SUNUCUSU
+  # ----------------------------------------------------------------------------
+  mssql_server:
+    # Apple Silicon (M1/M2/M3/M4) işlemcilerde x86-64 mimarisini Rosetta 2 ile emüle etmek için şarttır
+    platform: linux/amd64
+    # Resmi Microsoft SQL Server 2022 Linux container imajı
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    # Container'a verilecek sabit ve anlaşılır isim (docker ps çıktısında görünür)
+    container_name: otel_mssql_2022
+    # Beklenmedik bir çökme durumunda container'ın otomatik olarak yeniden başlatılmasını sağlar
+    restart: unless-stopped
+    # Container ortam değişkenleri (yapılandırma parametreleri)
+    environment:
+      # Microsoft Son Kullanıcı Lisans Sözleşmesini (EULA) kabul ettiğimizi belirtir (Y: Yes)
+      - ACCEPT_EULA=Y
+      # Sistem yöneticisi (sa) parolası: .env dosyasından okunur, yoksa güvenli varsayılan kullanılır
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-OtelProje2026!GucluSifre}
+      # Sunucu düzeyinde Türkçe karakter ve harf büyüklüğü duyarsız sıralama (collation) kuralı
+      # Bu ayar tempdb ve sistem tablolarının Türkçe collation ile çalışmasını sağlar (Collation conflict önlenir)
+      - MSSQL_COLLATION=Turkish_CI_AS
+      # SQL Server sürüm türü: Developer (Geliştirici) sürümü tüm kurumsal özellikleri ücretsiz sunar
+      - MSSQL_PID=Developer
+    # Port eşleme: Sol taraf Mac ana makinesi (host), sağ taraf container iç portudur
+    ports:
+      # 1433 portu standart MSSQL portudur; VS Code ve backend bu port üzerinden bağlanır
+      - "1433:1433"
+    # Veri kalıcılığı (persistence): Container silinse bile veritabanı dosyaları kaybolmaz
+    volumes:
+      # İsimlendirilmiş volume, container içindeki /var/opt/mssql dizinine bağlanır
+      - otel_mssql_data:/var/opt/mssql
+    # Sunucunun sorgu kabul etmeye hazır olup olmadığını denetleyen sağlık kontrolü
+    healthcheck:
+      # sqlcmd aracıyla yerel bağlantı testi yapılır; -C güvenilmeyen sertifikayı onaylar
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD:-OtelProje2026!GucluSifre}\" -Q \"SELECT 1\" -C || exit 1"]
+      # İlk kontrol için sunucunun açılmasını bekleme süresi
+      interval: 10s
+      # Komutun zaman aşımına uğrama süresi
+      timeout: 5s
+      # Sağlıksız sayılmadan önce kaç kez deneneceği
+      retries: 5
+      # Başlangıçta SQL Server servisinin ayağa kalkması için tanınan tolerans süresi
+      start_period: 20s
+
+  # ----------------------------------------------------------------------------
+  # SERVIS 2: MAILPIT (TEST E-POSTA SUNUCUSU - EK PUAN BİLEŞENİ)
+  # ----------------------------------------------------------------------------
+  mailpit:
+    # Mailpit, yerel geliştirme için sahte SMTP sunucusu ve modern bir web arayüzü sunar
+    image: axllent/mailpit:latest
+    # Container adı
+    container_name: otel_mailpit
+    # Yeniden başlatma kuralı
+    restart: unless-stopped
+    # Port yönlendirmeleri
+    ports:
+      # 1025: SMTP portu (Backend e-posta işçisi Python scripti buraya e-posta gönderir)
+      - "1025:1025"
+      # 8025: Web Arayüzü (Tarayıcıdan http://localhost:8025 açılarak gelen e-postalar görsel izlenir)
+      - "8025:8025"
+    # Mailpit ortam değişkenleri
+    environment:
+      # Web arayüzünün dinleyeceği adres
+      - MP_WEBROOT=/
+      # E-postaların kaydedileceği bellek sınırı (500 adet mesaj tutulur)
+      - MP_MAX_MESSAGES=500
+
+# ------------------------------------------------------------------------------
+# KALICI VERİ DEPOLAMA ALANLARI (VOLUMES)
+# ------------------------------------------------------------------------------
+volumes:
+  # MSSQL veritabanı veri ve günlük (MDF/LDF) dosyalarının saklanacağı Docker volume
+  otel_mssql_data:
+    # Harici bir sürücü yerine Docker tarafından yönetilen yerel volume sürücüsü
+    driver: local
